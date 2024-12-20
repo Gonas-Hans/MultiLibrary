@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+//Copyright (c) 2024 Alexander Goncharov. All Rights Reserved.
 
 #include "MultiLibraryBPLibrary.h"
 #include "Kismet/KismetSystemLibrary.h"

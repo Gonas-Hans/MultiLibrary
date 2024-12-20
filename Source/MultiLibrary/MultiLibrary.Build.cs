@@ -1,4 +1,4 @@
-// Some copyright should be here...
+//Copyright (c) 2024 Alexander Goncharov. All Rights Reserved.
 
 using UnrealBuildTool;
 
