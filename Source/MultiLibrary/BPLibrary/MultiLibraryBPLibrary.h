@@ -24,7 +24,7 @@
 */
 
 UENUM()
-enum class EObjectPrintableName : uint8
+enum class EObjectNameSource : uint8
 {
 	Display_Name	UMETA(DisplayName = "Display Name"),
 	Object_Name		UMETA(DisplayName = "Object Name")
@@ -40,7 +40,7 @@ class UMultiLibraryBPLibrary : public UBlueprintFunctionLibrary
 			CallableWithoutWorldContext, Keywords = "log print", AdvancedDisplay = "2", DevelopmentOnly),
 		Category="Development")
 	static void PrintAll(const int& InputValue, const UObject* WorldContextObject, bool bViewSourceName = false,
-	                     EObjectPrintableName ObjectPrintableName = EObjectPrintableName::Display_Name,
+	                     EObjectNameSource ObjectPrintableName = EObjectNameSource::Display_Name,
 	                     bool bPrintToScreen = true, bool bPrintToLog = true,
 	                     FLinearColor TextColor = FLinearColor(0.0, 0.66, 1.0),
 	                     float Duration = 2.f, const FName Key = NAME_None);
@@ -51,17 +51,24 @@ class UMultiLibraryBPLibrary : public UBlueprintFunctionLibrary
 	* @param Property    The struct property reflection data
 	* @param PropertyPtr        The pointer to the struct value
 	*/
-	static void ReceiveSomeProperty(FProperty* Property, void* PropertyPtr,
-	                                bool bViewSourceName, EObjectPrintableName ObjectPrintableName,
+	static void DeterminePropertyType(FProperty* Property, void* PropertyPtr,
+	                                bool bViewSourceName, EObjectNameSource ObjectPrintableName,
 	                                const UObject* WorldContextObject, bool bPrintToScreen, bool bPrintToLog,
 	                                FLinearColor TextColor, float Duration, const FName Key);
+
+	static void GetStructProperty(FProperty* Property, void* PropertyPtr,
+						  bool bViewSourceName, EObjectNameSource ObjectPrintableName,
+						  const UObject* WorldContextObject, bool bPrintToScreen, bool bPrintToLog,
+						  FLinearColor TextColor, float Duration, const FName Key, FString SourceName);
+	static void GetArrayProperty(FProperty* Property, void* PropertyPtr,
+						  bool bViewSourceName, EObjectNameSource ObjectPrintableName,
+						  const UObject* WorldContextObject, bool bPrintToScreen, bool bPrintToLog,
+						  FLinearColor TextColor, float Duration, const FName Key, FString SourceName);
 	
 	/* Example function for parsing a single property
 	* @param Property    the property reflection data
 	* @param ValuePtr    the pointer to the property value
 	*/
-	static void ParseProperty(FProperty* Property, void* ValuePtr,
-	                          bool bViewSourceName, EObjectPrintableName ObjectPrintableName,
-	                          const UObject* WorldContextObject, bool bPrintToScreen, bool bPrintToLog,
-	                          FLinearColor TextColor, float Duration, const FName Key, FString SourceName);
+	static FString GetSinglePropertyString(FProperty* Property, void* ValuePtr,
+	                          bool bViewSourceName, EObjectNameSource ObjectPrintableName, FString SourceName);
 };

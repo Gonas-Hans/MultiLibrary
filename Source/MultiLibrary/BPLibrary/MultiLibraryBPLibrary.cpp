@@ -9,7 +9,7 @@ UMultiLibraryBPLibrary::UMultiLibraryBPLibrary(const FObjectInitializer& ObjectI
 
 }
 
-void UMultiLibraryBPLibrary::PrintAll(const int& InputValue, const UObject* WorldContextObject, bool bViewSourceName, EObjectPrintableName ObjectPrintableName,
+void UMultiLibraryBPLibrary::PrintAll(const int& InputValue, const UObject* WorldContextObject, bool bViewSourceName, EObjectNameSource ObjectPrintableName,
 	 bool bPrintToScreen, bool bPrintToLog, FLinearColor TextColor, float Duration, const FName Key)
 {
 }
@@ -29,7 +29,7 @@ DEFINE_FUNCTION(UMultiLibraryBPLibrary::execPrintAll)
 
 	PARAM_PASSED_BY_VAL(WorldContextObject, FObjectProperty, UObject*)
 	PARAM_PASSED_BY_VAL(bViewSourceName, FBoolProperty, bool)
-	PARAM_PASSED_BY_VAL(ObjectPrintableName, FEnumProperty, EObjectPrintableName)
+	PARAM_PASSED_BY_VAL(ObjectPrintableName, FEnumProperty, EObjectNameSource)
 	PARAM_PASSED_BY_VAL(bPrintToScreen, FBoolProperty, bool)
 	PARAM_PASSED_BY_VAL(bPrintToLog, FBoolProperty, bool)
 	PARAM_PASSED_BY_VAL(TextColor, FStructProperty, FLinearColor)
@@ -41,14 +41,14 @@ DEFINE_FUNCTION(UMultiLibraryBPLibrary::execPrintAll)
 
 	P_NATIVE_BEGIN;
 	// Iterate through the struct
-	ReceiveSomeProperty(Property, PropertyPtr, bViewSourceName, ObjectPrintableName, WorldContextObject,
+	DeterminePropertyType(Property, PropertyPtr, bViewSourceName, ObjectPrintableName, WorldContextObject,
 		bPrintToScreen, bPrintToLog, TextColor, Duration, Key);
 	P_NATIVE_END
 }
 
 
-void UMultiLibraryBPLibrary::ReceiveSomeProperty(FProperty* Property, void* PropertyPtr,
-	bool bViewSourceName,EObjectPrintableName ObjectPrintableName, const UObject* WorldContextObject, bool bPrintToScreen,
+void UMultiLibraryBPLibrary::DeterminePropertyType(FProperty* Property, void* PropertyPtr,
+	bool bViewSourceName,EObjectNameSource ObjectPrintableName, const UObject* WorldContextObject, bool bPrintToScreen,
 	bool bPrintToLog, FLinearColor TextColor, float Duration, const FName Key)
 {
 	FString OutString;
@@ -58,110 +58,131 @@ void UMultiLibraryBPLibrary::ReceiveSomeProperty(FProperty* Property, void* Prop
 	{
 		SourceName =  FString::Printf(TEXT("%s: "), *Property->GetAuthoredName());
 	}
-	
-	FStructProperty* StructProperty = CastField<FStructProperty>(Property);
 	//Check for struct
-	if (StructProperty)
+	if (FStructProperty* StructProperty = CastField<FStructProperty>(Property))
 	{
-		//Check struct for FVector
-		if (StructProperty->Struct == TBaseStructure<FVector>::Get())
-		{
-			if (PropertyPtr)
-			{
-				// Transform data into FVector
-				FVector* Vector = static_cast<FVector*>(PropertyPtr);
-				OutString = FString::Printf(TEXT("X=%s, Y=%s, Z=%s"),
-					*FString::SanitizeFloat(Vector->X),
-					*FString::SanitizeFloat(Vector->Y),
-					*FString::SanitizeFloat(Vector->Z));
-				if (!SourceName.IsEmpty())
-				{
-					OutString = SourceName.Append(OutString);
-				}
-				
-				UKismetSystemLibrary::PrintString(WorldContextObject, OutString, bPrintToScreen, bPrintToLog, TextColor,
-					Duration, Key);
-			}
-		}
-		//Check struct for FRotator
-		else if (StructProperty->Struct == TBaseStructure<FRotator>::Get())
-		{
-			if (PropertyPtr)
-			{
-				// Transform data into FRotator
-				FRotator* Rotator = static_cast<FRotator*>(PropertyPtr);
-				OutString = FString::Printf(TEXT("R=%s, P=%s, Y=%s"),
-					*FString::SanitizeFloat(Rotator->Roll),
-					*FString::SanitizeFloat(Rotator->Pitch),
-					*FString::SanitizeFloat(Rotator->Yaw));
-				if (!SourceName.IsEmpty())
-				{
-					OutString = SourceName.Append(OutString);
-				}
-				UKismetSystemLibrary::PrintString(WorldContextObject, OutString, bPrintToScreen, bPrintToLog, TextColor,
-					Duration, Key);
-			}
-		}
-		//Check struct for FTransform
-		else if (StructProperty->Struct == TBaseStructure<FTransform>::Get())
-		{
-			if (PropertyPtr)
-			{
-				// Transform data into FTransform
-				FTransform* Transform = static_cast<FTransform*>(PropertyPtr);
-				OutString = FString::Printf(TEXT("Loc: X=%s, Y=%s, Z=%s, Rot: R=%s, P=%s, Y=%s, Sca: X=%s, Y=%s, Z=%s"),
-					*FString::SanitizeFloat(Transform->GetLocation().X),
-					*FString::SanitizeFloat(Transform->GetLocation().Y),
-					*FString::SanitizeFloat(Transform->GetLocation().Z),
-					*FString::SanitizeFloat(Transform->GetRotation().Euler().X),
-					*FString::SanitizeFloat(Transform->GetRotation().Euler().Y),
-					*FString::SanitizeFloat(Transform->GetRotation().Euler().Z),
-					*FString::SanitizeFloat(Transform->GetScale3D().X),
-					*FString::SanitizeFloat(Transform->GetScale3D().Y),
-					*FString::SanitizeFloat(Transform->GetScale3D().Z));
-				if (!SourceName.IsEmpty())
-				{
-					OutString = SourceName.Append(OutString);
-				}
-				UKismetSystemLibrary::PrintString(WorldContextObject, OutString, bPrintToScreen, bPrintToLog, TextColor,
-					Duration, Key);
-			}
-		}
-		else
-		{
-			// Walk the structs' properties
-			for (TFieldIterator<FProperty> PropertyIt(StructProperty->Struct); PropertyIt; ++PropertyIt)
-			{
-				FString VariableName = SourceName;
-				// This is the struct variable name if you need it
-				if (bViewSourceName)
-            		{
-						VariableName.Append(FString::Printf(TEXT("%s: "), *PropertyIt->GetAuthoredName()));
-            		}
-				// Never assume ArrayDim is always 1
-				for (int32 ArrayIndex = 0; ArrayIndex < PropertyIt->ArrayDim; ArrayIndex++)
-					{
-						// This grabs the pointer to where the property value is stored
-						void* ValuePtr = PropertyIt->ContainerPtrToValuePtr<void>(PropertyPtr, ArrayIndex);
-            
-						// Parse this property
-					ParseProperty(*PropertyIt, ValuePtr, bViewSourceName, ObjectPrintableName, WorldContextObject,
-						bPrintToScreen, bPrintToLog, TextColor, Duration, Key, VariableName);
-					}
-			}
-		}
+		GetStructProperty(Property, PropertyPtr, bViewSourceName, ObjectPrintableName, WorldContextObject,
+					bPrintToScreen, bPrintToLog, TextColor, Duration, Key, SourceName);
 	}
-	//If property not struct
+	//Check for array
+	else if (FArrayProperty* ArrayProperty = CastField<FArrayProperty>(Property))
+	{
+		GetArrayProperty(Property, PropertyPtr, bViewSourceName, ObjectPrintableName, WorldContextObject,
+					bPrintToScreen, bPrintToLog, TextColor, Duration, Key, SourceName);
+	}
+	//If property not struct or array
 	else
 	{
-		ParseProperty(Property, PropertyPtr, bViewSourceName, ObjectPrintableName, WorldContextObject,
-			bPrintToScreen, bPrintToLog, TextColor, Duration, Key, SourceName);
+		GetSinglePropertyString(Property, PropertyPtr, bViewSourceName, ObjectPrintableName, SourceName);
+	}
+
+	UKismetSystemLibrary::PrintString(WorldContextObject, OutString, bPrintToScreen, bPrintToLog, TextColor,
+					Duration, Key);
+}
+
+void UMultiLibraryBPLibrary::GetStructProperty(FProperty* Property, void* PropertyPtr, bool bViewSourceName,
+	EObjectNameSource ObjectPrintableName, const UObject* WorldContextObject, bool bPrintToScreen, bool bPrintToLog,
+	FLinearColor TextColor, float Duration, const FName Key, FString SourceName)
+{
+	FString OutString;
+
+	FStructProperty* StructProperty = CastField<FStructProperty>(Property);
+	//Check struct for FVector
+	if (StructProperty->Struct == TBaseStructure<FVector>::Get())
+	{
+		if (PropertyPtr)
+		{
+			// Transform data into FVector
+			FVector* Vector = static_cast<FVector*>(PropertyPtr);
+			OutString = FString::Printf(TEXT("X=%s, Y=%s, Z=%s"),
+				*FString::SanitizeFloat(Vector->X),
+				*FString::SanitizeFloat(Vector->Y),
+				*FString::SanitizeFloat(Vector->Z));
+			if (!SourceName.IsEmpty())
+			{
+				OutString = SourceName.Append(OutString);
+			}
+
+			UKismetSystemLibrary::PrintString(WorldContextObject, OutString, bPrintToScreen, bPrintToLog, TextColor,
+					Duration, Key);
+		}
+	}
+	//Check struct for FRotator
+	else if (StructProperty->Struct == TBaseStructure<FRotator>::Get())
+	{
+		if (PropertyPtr)
+		{
+			// Transform data into FRotator
+			FRotator* Rotator = static_cast<FRotator*>(PropertyPtr);
+			OutString = FString::Printf(TEXT("R=%s, P=%s, Y=%s"),
+				*FString::SanitizeFloat(Rotator->Roll),
+				*FString::SanitizeFloat(Rotator->Pitch),
+				*FString::SanitizeFloat(Rotator->Yaw));
+			if (!SourceName.IsEmpty())
+			{
+				OutString = SourceName.Append(OutString);
+			}
+			UKismetSystemLibrary::PrintString(WorldContextObject, OutString, bPrintToScreen, bPrintToLog, TextColor,
+					Duration, Key);
+		}
+	}
+	//Check struct for FTransform
+	else if (StructProperty->Struct == TBaseStructure<FTransform>::Get())
+	{
+		if (PropertyPtr)
+		{
+			// Transform data into FTransform
+			FTransform* Transform = static_cast<FTransform*>(PropertyPtr);
+			OutString = FString::Printf(TEXT("Loc: X=%s, Y=%s, Z=%s, Rot: R=%s, P=%s, Y=%s, Sca: X=%s, Y=%s, Z=%s"),
+				*FString::SanitizeFloat(Transform->GetLocation().X),
+				*FString::SanitizeFloat(Transform->GetLocation().Y),
+				*FString::SanitizeFloat(Transform->GetLocation().Z),
+				*FString::SanitizeFloat(Transform->GetRotation().Euler().X),
+				*FString::SanitizeFloat(Transform->GetRotation().Euler().Y),
+				*FString::SanitizeFloat(Transform->GetRotation().Euler().Z),
+				*FString::SanitizeFloat(Transform->GetScale3D().X),
+				*FString::SanitizeFloat(Transform->GetScale3D().Y),
+				*FString::SanitizeFloat(Transform->GetScale3D().Z));
+			if (!SourceName.IsEmpty())
+			{
+				OutString = SourceName.Append(OutString);
+			}
+			UKismetSystemLibrary::PrintString(WorldContextObject, OutString, bPrintToScreen, bPrintToLog, TextColor,
+					Duration, Key);
+		}
+	}
+	else
+	{
+		// Walk the structs' properties
+		for (TFieldIterator<FProperty> PropertyIt(StructProperty->Struct); PropertyIt; ++PropertyIt)
+		{
+			FString VariableName = SourceName;
+			// This is the struct variable name if you need it
+			if (bViewSourceName)
+			{
+				VariableName.Append(FString::Printf(TEXT("%s: "), *PropertyIt->GetAuthoredName()));
+			}
+			// Never assume ArrayDim is always 1
+			for (int32 ArrayIndex = 0; ArrayIndex < PropertyIt->ArrayDim; ArrayIndex++)
+			{
+				// This grabs the pointer to where the property value is stored
+				void* ValuePtr = PropertyIt->ContainerPtrToValuePtr<void>(PropertyPtr, ArrayIndex);
+
+				DeterminePropertyType(*PropertyIt, PropertyPtr, bViewSourceName, ObjectPrintableName, WorldContextObject,
+					bPrintToScreen, bPrintToLog, TextColor, Duration, Key);
+			}
+		}
 	}
 }
 
-void UMultiLibraryBPLibrary::ParseProperty(FProperty* Property, void* ValuePtr, bool bViewSourceName,
-	EObjectPrintableName ObjectPrintableName, const UObject* WorldContextObject, bool bPrintToScreen, bool bPrintToLog,
+void UMultiLibraryBPLibrary::GetArrayProperty(FProperty* Property, void* PropertyPtr, bool bViewSourceName,
+	EObjectNameSource ObjectPrintableName, const UObject* WorldContextObject, bool bPrintToScreen, bool bPrintToLog,
 	FLinearColor TextColor, float Duration, const FName Key, FString SourceName)
+{
+}
+
+FString UMultiLibraryBPLibrary::GetSinglePropertyString(FProperty* Property, void* ValuePtr, bool bViewSourceName,
+                                                        EObjectNameSource ObjectPrintableName, FString SourceName)
 {
 	FString OutString;
 	
@@ -230,11 +251,11 @@ void UMultiLibraryBPLibrary::ParseProperty(FProperty* Property, void* ValuePtr, 
 		UObject* ObjectValue = ObjectProperty->GetObjectPropertyValue(ValuePtr);
 		switch (ObjectPrintableName)
 		{
-			case EObjectPrintableName::Display_Name:
+			case EObjectNameSource::Display_Name:
 				OutString = UKismetSystemLibrary::GetDisplayName(ObjectValue);
 			break;
 			
-			case EObjectPrintableName::Object_Name:
+			case EObjectNameSource::Object_Name:
 				OutString = UKismetSystemLibrary::GetObjectName(ObjectValue);
 			break;
 			
@@ -270,7 +291,7 @@ void UMultiLibraryBPLibrary::ParseProperty(FProperty* Property, void* ValuePtr, 
 		UClass* IntefaceValue = InterfaceProperty->InterfaceClass;
 		OutString = UKismetSystemLibrary::GetClassDisplayName(IntefaceValue);
 	}
-		
+	/*	
 	// Reading an array
 	else if (FArrayProperty* ArrayProperty = CastField<FArrayProperty>(Property))
 	{
@@ -278,7 +299,7 @@ void UMultiLibraryBPLibrary::ParseProperty(FProperty* Property, void* ValuePtr, 
 		FScriptArrayHelper Helper(ArrayProperty, ValuePtr);
 		for (int32 i = 0, n = Helper.Num(); i < n; ++i)
 		{
-			ParseProperty(ArrayProperty->Inner, Helper.GetRawPtr(i), bViewSourceName, ObjectPrintableName, WorldContextObject,
+			GetSinglePropertyString(ArrayProperty->Inner, Helper.GetRawPtr(i), bViewSourceName, ObjectPrintableName, WorldContextObject,
 				bPrintToScreen, bPrintToLog, TextColor, Duration, Key, SourceName);
 		}
 	}
@@ -286,10 +307,10 @@ void UMultiLibraryBPLibrary::ParseProperty(FProperty* Property, void* ValuePtr, 
 	// Reading a nested struct
 	else if (Property)
 	{
-		ReceiveSomeProperty(Property, ValuePtr, bViewSourceName, ObjectPrintableName, WorldContextObject,
+		DeterminePropertyType(Property, ValuePtr, bViewSourceName, ObjectPrintableName, WorldContextObject,
 			bPrintToScreen, bPrintToLog, TextColor, Duration, Key);
 	}
-	
+	*/
 	//Check and print out string
 	if (!OutString.IsEmpty())
 	{
@@ -297,7 +318,9 @@ void UMultiLibraryBPLibrary::ParseProperty(FProperty* Property, void* ValuePtr, 
 		{
 			OutString = SourceName.Append(OutString);
 		}
-		UKismetSystemLibrary::PrintString(WorldContextObject, OutString, bPrintToScreen, bPrintToLog, TextColor, Duration, Key);
+		//UKismetSystemLibrary::PrintString(WorldContextObject, OutString, bPrintToScreen, bPrintToLog, TextColor, Duration, Key);
 	}
+
+	return OutString;
 }
 
